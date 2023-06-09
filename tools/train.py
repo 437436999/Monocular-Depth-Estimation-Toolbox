@@ -17,6 +17,7 @@ from depth.models import build_depther, build_depther
 from depth.utils import collect_env, get_root_logger
 
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a depthor')
     parser.add_argument('config', help='train config file path')

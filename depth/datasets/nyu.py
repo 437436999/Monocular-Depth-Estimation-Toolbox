@@ -4,6 +4,7 @@ import warnings
 from collections import OrderedDict
 from functools import reduce
 
+import cv2
 import mmcv
 import numpy as np
 from mmcv.utils import print_log
@@ -189,9 +190,12 @@ class NYUDataset(Dataset):
         self.pre_pipeline(results)
         return self.pipeline(results)
 
-    def format_results(self, results, imgfile_prefix, indices=None, **kwargs):
+    def format_results(self, results, imgfile_prefix, indices=None, **kwargs): 
         """Place holder to format result to dataset specific output."""
-        raise NotImplementedError
+        # raise NotImplementedError
+        for i in range(len(results)):
+            results[i] = (results[i] * self.depth_scale) # Do not convert to np.uint16 for ensembling. # .astype(np.uint16)
+        return results
 
     def get_gt_depth_maps(self):
         """Get ground truth depth maps for evaluation."""
@@ -242,7 +246,11 @@ class NYUDataset(Dataset):
         for i, (pred, index) in enumerate(zip(preds, indices)):
             depth_map = self.img_infos[index]['ann']['depth_map']
 
+            # print()
+            # print(depth_map)
             depth_map_gt = np.asarray(Image.open(depth_map), dtype=np.float32) / self.depth_scale
+            # print("size", pred.shape, depth_map_gt.shape)
+            depth_map_gt = cv2.resize(depth_map_gt, pred.shape[1:])
             depth_map_gt = np.expand_dims(depth_map_gt, axis=0)
             # depth_map_gt = self.eval_nyu_crop(depth_map_gt)
             valid_mask = self.eval_mask(depth_map_gt)

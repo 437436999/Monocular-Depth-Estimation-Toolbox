@@ -25,12 +25,17 @@ class CrossEntropyLoss(nn.Module):
         maxk = max(topk)
         batch_size = target.size(0)
 
+        # print("output data type: ", type(output), output.shape, output.dtype) 
+        # print(output)
+        # print("target data type: ", type(target), target.shape, target.dtype) 
+        # print(target)
         _, pred = output.topk(maxk, 1, True, True)
         pred = pred.t()
         correct = pred.eq(target.view(1, -1).expand_as(pred))
 
         res = []
         for k in topk:
+            # print(correct[:k].flatten().float().sum(0))
             correct_k = correct[:k].flatten().float().sum(0)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res

@@ -69,6 +69,9 @@ def single_gpu_test(model,
     assert [pre_eval, format_only].count(True) <= 1, \
         '``pre_eval`` and ``format_only`` are mutually ' \
         'exclusive, only one of them could be true .'
+    
+    print("format_only", format_only)
+    print("pre_eval", pre_eval)
 
     model.eval()
     results = []
@@ -81,11 +84,14 @@ def single_gpu_test(model,
     # we use batch_sampler to get correct data idx
     loader_indices = data_loader.batch_sampler
 
+
     for batch_indices, data in zip(loader_indices, data_loader):
         result = [None]
 
         with torch.no_grad():
             result_depth = model(return_loss=False, **data)
+
+        # print("result_depth", len(result_depth), result_depth[0].shape)
 
         if format_only:
             result = dataset.format_results(result_depth,
@@ -108,6 +114,7 @@ def single_gpu_test(model,
             imgs = tensor2imgs(img_tensor, **img_metas[0]['img_norm_cfg'])
             assert len(imgs) == len(img_metas)
 
+            i=0
             for img, img_meta in zip(imgs, img_metas):
                 h, w, _ = img_meta['img_shape']
                 img_show = img[:h, :w, :]
@@ -118,8 +125,8 @@ def single_gpu_test(model,
                 if out_dir:
                     mmcv.mkdir_or_exist(out_dir)
                     if format_only:
-                        filename = img_meta['ori_filename'][:-4]
-                        filename = filename + '.npy'
+                        filename = replace_str(img_meta['ori_filename'][:-4])
+                        filename = filename + '.png'
                         out_file = osp.join(out_dir, filename)
                     else:
                         out_file = osp.join(out_dir, replace_str(img_meta['ori_filename']))
@@ -131,9 +138,11 @@ def single_gpu_test(model,
                     result_depth,
                     show=show,
                     out_file=out_file,
-                    format_only=format_only)
+                    format_only=format_only,
+                    index=i)
+                i+=1
 
-        batch_size = len(result)
+        batch_size = len(result_depth)
         for _ in range(batch_size):
             prog_bar.update()
 

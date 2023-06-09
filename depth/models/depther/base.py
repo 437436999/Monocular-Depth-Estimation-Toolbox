@@ -2,6 +2,7 @@ import warnings
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 
+import cv2
 import mmcv
 import numpy as np
 import torch
@@ -210,7 +211,8 @@ class BaseDepther(BaseModule, metaclass=ABCMeta):
                     show=False,
                     wait_time=0,
                     out_file=None,
-                    format_only=False):
+                    format_only=False,
+                    index=0):
         """Draw `result` over `img`.
 
         Args:
@@ -228,14 +230,20 @@ class BaseDepther(BaseModule, metaclass=ABCMeta):
         """
         img = mmcv.imread(img)
         img = img.copy()
-        depth = result[0]
+        depth = result[index]
+        # print("show_result result len", len(result))
 
         if show:
             mmcv.imshow(img, win_name, wait_time)
 
         if format_only:
             if out_file is not None:
-                np.save(out_file, depth) # only save the value.
+                # np.save(out_file, depth) # only save the value.
+                w=depth.shape[1]
+                h=depth.shape[2]
+                depth_uint16 = depth.astype(np.uint16).reshape((w, h))
+                # print(depth_int16)
+                cv2.imwrite(out_file, depth_uint16)
         else:
             if out_file is not None:
                 depth = colorize(depth, vmin=self.decode_head.min_depth, vmax=self.decode_head.max_depth)

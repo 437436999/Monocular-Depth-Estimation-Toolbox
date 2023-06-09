@@ -22,12 +22,14 @@ class SigLoss(nn.Module):
                  valid_mask=True,
                  loss_weight=1.0,
                  max_depth=None,
+                 min_depth=0.001,
                  warm_up=False,
                  warm_iter=100):
         super(SigLoss, self).__init__()
         self.valid_mask = valid_mask
         self.loss_weight = loss_weight
         self.max_depth = max_depth
+        self.min_depth = min_depth
 
         self.eps = 0.001 # avoid grad explode
 
@@ -38,9 +40,9 @@ class SigLoss(nn.Module):
 
     def sigloss(self, input, target):
         if self.valid_mask:
-            valid_mask = target > 0
+            valid_mask = target > self.min_depth
             if self.max_depth is not None:
-                valid_mask = torch.logical_and(target > 0, target <= self.max_depth)
+                valid_mask = torch.logical_and(target > self.min_depth, target <= self.max_depth)
             input = input[valid_mask]
             target = target[valid_mask]
         

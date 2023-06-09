@@ -434,7 +434,8 @@ class Resize(object):
                  img_scale=None,
                  multiscale_mode='range',
                  ratio_range=None,
-                 keep_ratio=True):
+                 keep_ratio=True,
+                 scale=1):
         if img_scale is None:
             self.img_scale = None
         else:
@@ -455,6 +456,7 @@ class Resize(object):
         self.multiscale_mode = multiscale_mode
         self.ratio_range = ratio_range
         self.keep_ratio = keep_ratio
+        self.scale = scale
 
     @staticmethod
     def random_select(img_scales):
@@ -612,10 +614,12 @@ class Resize(object):
                 'keep_ratio' keys are added into result dict.
         """
 
-        if 'scale' not in results:
-            self._random_scale(results)
+        # if 'scale' not in results:
+        #     self._random_scale(results)
+        results['scale'] = self.scale
         self._resize_img(results)
         self._resize_depth(results)
+        # print("zoom", results['img'].shape)
         return results
 
     def __repr__(self):

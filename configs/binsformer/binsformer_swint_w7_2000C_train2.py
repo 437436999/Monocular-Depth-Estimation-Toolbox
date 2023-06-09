@@ -16,15 +16,15 @@ model = dict(
         pretrain_style='official'),
     decode_head=dict(
         type='BinsFormerDecodeHead',
-        class_num=25,
+        class_num=40,
         in_channels=[96, 192, 384, 768],
         conv_dim=256,
         min_depth=1e-3,
-        max_depth=10,
+        max_depth=5,
         n_bins=64,
         index=[0, 1, 2, 3],
         trans_index=[1, 2, 3], # select index for cross-att
-        loss_decode=dict(type='SigLoss', valid_mask=True, loss_weight=10),
+        loss_decode=dict(type='SigLoss', valid_mask=True, loss_weight=10, max_depth=5, min_depth=1e-3),
         with_loss_chamfer=False, # do not use chamfer loss
         loss_chamfer=dict(type='BinsChamferLoss', loss_weight=1e-1),
         classify=True, # class embedding
@@ -76,17 +76,17 @@ model = dict(
 
 # dataset settings
 dataset_type = 'NYUBinFormerDataset'
-data_root = 'data/nyu/'
+data_root = 'data/2000C/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
-crop_size= (416, 544)
+crop_size = (512, 512)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='DepthLoadAnnotations'),
-    dict(type='NYUCrop', depth=True),
+    # dict(type='LabCrop', depth=True),
     dict(type='RandomRotate', prob=0.5, degree=2.5),
     dict(type='RandomFlip', prob=0.5),
-    dict(type='RandomCrop', crop_size=(416, 544)),
+    # dict(type='RandomCrop', crop_size=crop_size),
     dict(type='ColorAug', prob=0.5, gamma_range=[0.9, 1.1], brightness_range=[0.75, 1.25], color_range=[0.9, 1.1]),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='DefaultFormatBundle'),
@@ -94,9 +94,10 @@ train_pipeline = [
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile'),
+    # dict(type='LabCrop', depth=True),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(480, 640),
+        img_scale=(1440, 540),
         flip=True,
         flip_direction='horizontal',
         transforms=[
@@ -121,38 +122,38 @@ eval_pipeline = [
                     'cam_intrinsic')),
 ]
 data = dict(
-    samples_per_gpu=2,
-    workers_per_gpu=2,
+    samples_per_gpu=4,
+    workers_per_gpu=3,
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        depth_scale=1000,
-        split='nyu_train.txt',
+        depth_scale=10000,
+        split='2000C_train2_rect_refine.txt',
         pipeline=train_pipeline,
         garg_crop=False,
         eigen_crop=True,
         min_depth=1e-3,
-        max_depth=10),
+        max_depth=5),
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        depth_scale=1000,
-        split='nyu_test.txt',
+        depth_scale=10000,
+        split='2000C_test2_rect_refine.txt',
         pipeline=test_pipeline,
         garg_crop=False,
         eigen_crop=True,
         min_depth=1e-3,
-        max_depth=10),
+        max_depth=5),
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        depth_scale=1000,
-        split='nyu_test.txt',
+        depth_scale=10000,
+        split='2000C_test2_rect_refine.txt',
         pipeline=test_pipeline,
         garg_crop=False,
         eigen_crop=True,
         min_depth=1e-3,
-        max_depth=10))
+        max_depth=5))
 
 
 # AdamW optimizer, no weight decay for position embedding & layer norm
@@ -179,11 +180,11 @@ lr_config = dict(
     by_epoch=False)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=1600 * 4)
-checkpoint_config = dict(by_epoch=False, max_keep_ckpts=2, interval=1600)
+runner = dict(type='IterBasedRunner', max_iters=1600 * 36)
+checkpoint_config = dict(by_epoch=False, max_keep_ckpts=10, interval=3200)
 evaluation = dict(by_epoch=False, 
                   start=0,
-                  interval=1600, 
+                  interval=6400, 
                   pre_eval=True, 
                   rule='less', 
                   save_best='abs_rel',

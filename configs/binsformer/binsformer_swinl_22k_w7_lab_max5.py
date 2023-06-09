@@ -4,30 +4,26 @@ _base_ = [
 ]
 
 model = dict(
-    pretrained='https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth', # noqa
+    pretrained='https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_large_patch4_window7_224_22k.pth', # noqa
     backbone=dict(
-        embed_dims=96,
-        depths=[2, 2, 6, 2],
-        num_heads=[3, 6, 12, 24],
-        window_size=7,
-        use_abs_pos_embed=False,
-        drop_path_rate=0.3,
-        patch_norm=True,
-        pretrain_style='official'),
+        embed_dims=192,
+        depths=[2, 2, 18, 2],
+        num_heads=[6, 12, 24, 48],
+        window_size=7),
     decode_head=dict(
         type='BinsFormerDecodeHead',
         class_num=25,
-        in_channels=[96, 192, 384, 768],
-        conv_dim=256,
+        in_channels=[192, 384, 768, 1536],
+        conv_dim=512,
         min_depth=1e-3,
-        max_depth=10,
+        max_depth=5,
         n_bins=64,
         index=[0, 1, 2, 3],
         trans_index=[1, 2, 3], # select index for cross-att
         loss_decode=dict(type='SigLoss', valid_mask=True, loss_weight=10),
         with_loss_chamfer=False, # do not use chamfer loss
         loss_chamfer=dict(type='BinsChamferLoss', loss_weight=1e-1),
-        classify=True, # class embedding
+        classify=False, # class embedding
         loss_class=dict(type='CrossEntropyLoss', loss_weight=1e-2),
         norm_cfg=dict(type='BN', requires_grad=True),
         transformer_encoder=dict( # default settings
@@ -40,26 +36,30 @@ model = dict(
                     type='BaseTransformerLayer',
                     attn_cfgs=dict(
                         type='MultiScaleDeformableAttention', 
-                        embed_dims=256, 
+                        embed_dims=512, 
                         num_levels=3, 
                         num_points=8),
-                    feedforward_channels=1024,
-                    ffn_dropout=0.1,
+                    ffn_cfgs=dict(
+                        embed_dims=512,
+                        feedforward_channels=1024,
+                        ffn_dropout=0.1,),
+                    # feedforward_channels=1024,
+                    # ffn_dropout=0.1,
                     operation_order=('self_attn', 'norm', 'ffn', 'norm')))),
         positional_encoding=dict(
-            type='SinePositionalEncoding', num_feats=128, normalize=True),
+            type='SinePositionalEncoding', num_feats=256, normalize=True),
         transformer_decoder=dict(
             type='PixelTransformerDecoder',
             return_intermediate=True,
             num_layers=9,
             num_feature_levels=3,
-            hidden_dim=256,
-            operation='//',
+            hidden_dim=512,
+            operation='%',
             transformerlayers=dict(
                 type='PixelTransformerDecoderLayer',
                 attn_cfgs=dict(
                     type='MultiheadAttention',
-                    embed_dims=256,
+                    embed_dims=512,
                     num_heads=8,
                     dropout=0.0),
                 ffn_cfgs=dict(
@@ -76,17 +76,17 @@ model = dict(
 
 # dataset settings
 dataset_type = 'NYUBinFormerDataset'
-data_root = 'data/nyu/'
+data_root = 'data/lab/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 crop_size= (416, 544)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='DepthLoadAnnotations'),
-    dict(type='NYUCrop', depth=True),
+    # dict(type='NYUCrop', depth=True),
     dict(type='RandomRotate', prob=0.5, degree=2.5),
     dict(type='RandomFlip', prob=0.5),
-    dict(type='RandomCrop', crop_size=(416, 544)),
+    # dict(type='RandomCrop', crop_size=(416, 544)),
     dict(type='ColorAug', prob=0.5, gamma_range=[0.9, 1.1], brightness_range=[0.75, 1.25], color_range=[0.9, 1.1]),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='DefaultFormatBundle'),
@@ -120,39 +120,40 @@ eval_pipeline = [
                     'flip', 'flip_direction', 'img_norm_cfg',
                     'cam_intrinsic')),
 ]
+
 data = dict(
-    samples_per_gpu=2,
+    samples_per_gpu=1,
     workers_per_gpu=2,
     train=dict(
         type=dataset_type,
         data_root=data_root,
-        depth_scale=1000,
-        split='nyu_train.txt',
+        depth_scale=10000,
+        split='rect_installHeight_multi_refine_train2_files_list.txt',
         pipeline=train_pipeline,
         garg_crop=False,
         eigen_crop=True,
         min_depth=1e-3,
-        max_depth=10),
+        max_depth=5),
     val=dict(
         type=dataset_type,
         data_root=data_root,
-        depth_scale=1000,
-        split='nyu_test.txt',
+        depth_scale=10000,
+        split='rect_installHeight_multi_refine_test_files_list.txt',
         pipeline=test_pipeline,
         garg_crop=False,
         eigen_crop=True,
         min_depth=1e-3,
-        max_depth=10),
+        max_depth=5),
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        depth_scale=1000,
-        split='nyu_test.txt',
+        depth_scale=10000,
+        split='rect_installHeight_multi_refine_test_files_list.txt',
         pipeline=test_pipeline,
         garg_crop=False,
         eigen_crop=True,
         min_depth=1e-3,
-        max_depth=10))
+        max_depth=5))
 
 
 # AdamW optimizer, no weight decay for position embedding & layer norm
