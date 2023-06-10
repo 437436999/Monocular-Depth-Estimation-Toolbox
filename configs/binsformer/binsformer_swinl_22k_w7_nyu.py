@@ -23,7 +23,7 @@ model = dict(
         loss_decode=dict(type='SigLoss', valid_mask=True, loss_weight=10),
         with_loss_chamfer=False, # do not use chamfer loss
         loss_chamfer=dict(type='BinsChamferLoss', loss_weight=1e-1),
-        classify=True, # class embedding
+        classify=False, # class embedding
         loss_class=dict(type='CrossEntropyLoss', loss_weight=1e-2),
         norm_cfg=dict(type='BN', requires_grad=True),
         transformer_encoder=dict( # default settings
@@ -122,8 +122,8 @@ eval_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=2,
-    workers_per_gpu=2,
+    samples_per_gpu=1,
+    workers_per_gpu=1,
     train=dict(
         type=dataset_type,
         data_root=data_root,
@@ -180,7 +180,7 @@ lr_config = dict(
     by_epoch=False)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=1600 * 24)
+runner = dict(type='IterBasedRunner', max_iters=1600 * 50)
 checkpoint_config = dict(by_epoch=False, max_keep_ckpts=2, interval=1600)
 evaluation = dict(by_epoch=False, 
                   start=0,

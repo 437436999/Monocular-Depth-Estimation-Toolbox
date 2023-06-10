@@ -250,7 +250,7 @@ class NYUDataset(Dataset):
             # print(depth_map)
             depth_map_gt = np.asarray(Image.open(depth_map), dtype=np.float32) / self.depth_scale
             # print("size", pred.shape, depth_map_gt.shape)
-            depth_map_gt = cv2.resize(depth_map_gt, pred.shape[1:])
+            depth_map_gt = cv2.resize(depth_map_gt, (pred.shape[2], pred.shape[1]))
             depth_map_gt = np.expand_dims(depth_map_gt, axis=0)
             # depth_map_gt = self.eval_nyu_crop(depth_map_gt)
             valid_mask = self.eval_mask(depth_map_gt)

@@ -164,6 +164,12 @@ class NYUBinFormerDataset(NYUDataset):
                         # cls_name = img_name.split("/")[-1].split("_")[1]
                         # if cls_name=="R":
                         #     cls_name = str(cam_heights[img_name.split("/")[-1].split("_")[0]])
+
+                        # NYU原分类代码
+                        cls_name = img_name.split("/")[1].split("_")[0]
+                        # cls_name = img_name.split("/")[1]
+                        # if cls_name[-1].isalpha():
+                        #     cls_name = cls_name[:-1]
                             
                         if cls_name not in class_dict.keys():
                             class_dict[cls_name] = len(class_dict.keys())
