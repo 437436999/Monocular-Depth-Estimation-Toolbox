@@ -1,14 +1,17 @@
 #!/bin/bash
 
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_scratch_nyu.py 2 --work-dir nfs/saves/SimIPU/scratch_nyu
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_supervise_imagenet_nyu.py 2 --work-dir nfs/saves/SimIPU/supervise_imagenet_nyu
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_kitti_50e_nyu.py 2 --work-dir nfs/saves/SimIPU/kitti_50e_nyu
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_waymo_50e_nyu.py 2 --work-dir nfs/saves/SimIPU/waymo_50e_nyu
+names="2000C_W_373 2000C_U_174 2000C_M_223 2000C_K_154 2000C_B_all 2000C_I_523 2000C_H_130 2000C_D_041 2000C_A_112 2000C_W_546"
 
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_kitti_50e_kitti.py 2 --work-dir nfs/saves/SimIPU/kitti_50e_kitti
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_waymo_50e_kitti.py 2 --work-dir nfs/saves/SimIPU/waymo_50e_kitti
+for name in $names
+do
+    # python tools/test.py work_dirs/binsformer_swint_w7_${name}/binsformer_swint_w7_${name}.py work_dirs/binsformer_swint_w7_${name}/latest.pth --show-dir save_files/${name} --format-only
+    python tools/test.py work_dirs/binsformer_swint_w7_${name}/binsformer_swint_w7_${name}.py work_dirs/binsformer_swint_w7_${name}/latest.pth --show-dir save_files/${name}_train --format-only
+    pass
+done
 
-
-
-
-
+for name in $names
+do
+    # python ../metric_tool/metric_2000C_rect.py bins save_files/${name}/ ../../../dataset/2000C/${name}_rect_70_100_test.txt rect2rect
+    python ../metric_tool/metric_2000C_rect.py bins save_files/${name}_train/ ../../../dataset/2000C/${name}_rect_0_70_train.txt rect2rect
+    pass
+done

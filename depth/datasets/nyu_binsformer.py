@@ -159,7 +159,8 @@ class NYUBinFormerDataset(NYUDataset):
 
                     if self.test_mode is not True:
                         # 以场景分类
-                        cls_name = img_name.split("/")[-1].split("_")[0] + "_" + img_name.split("/")[-1].split("_")[1]
+                        # cls_name = img_name.split("/")[-1].split("_")[0] + "_" + img_name.split("/")[-1].split("_")[1]
+                        cls_name = "no classify"
                         # 以高度分类
                         # cls_name = img_name.split("/")[-1].split("_")[1]
                         # if cls_name=="R":
