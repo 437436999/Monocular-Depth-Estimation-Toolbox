@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 model = dict(
-    pretrained='nfs/checkpoints/jx_vit_base_p16_224-80ecf9dd.pth',
+    pretrained='/home/bojie/.cache/torch/hub/checkpoints/jx_vit_base_p16_224-80ecf9dd.pth',
     decode_head=dict(
         min_depth=1e-3,
         max_depth=10,
