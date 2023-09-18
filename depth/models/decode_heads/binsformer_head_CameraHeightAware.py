@@ -30,7 +30,7 @@ class UpSample(nn.Sequential):
         return self.convB(self.convA(torch.cat([up_x, concat_with], dim=1)))
 
 @HEADS.register_module()
-class BinsFormerDecodeHead(DepthBaseDecodeHead):
+class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
     """BinsFormer head
     This head is implemented of `BinsFormer: <https://arxiv.org/abs/2204.00987>`_.
     Motivated by segmentation methods, we design a double-stream decoders to achieve depth estimation.
@@ -75,7 +75,7 @@ class BinsFormerDecodeHead(DepthBaseDecodeHead):
                  loss_class=dict(type='CrossEntropyLoss', loss_weight=1e-1),
                  train_cfg=dict(aux_loss=True,),
                  **kwargs):
-        super(BinsFormerDecodeHead, self).__init__(**kwargs)
+        super(BinsFormerDecodeHeadCameraHeightAware, self).__init__(**kwargs)
 
         self.conv_dim = conv_dim
         self.act_cfg = act_cfg

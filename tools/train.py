@@ -140,7 +140,7 @@ def main():
     if cfg.get('SyncBN', False):
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
-    logger.info(model)
+    # logger.info(model)
 
     datasets = [build_dataset(cfg.data.train)]
     if len(cfg.workflow) == 2:

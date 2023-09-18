@@ -127,3 +127,6 @@ work_dirs/
 data/
 save_files/
 configs/
+histogram/
+excel/
+cls_res*

@@ -1,14 +1,9 @@
 #!/bin/bash
-
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_scratch_nyu.py 2 --work-dir nfs/saves/SimIPU/scratch_nyu
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_supervise_imagenet_nyu.py 2 --work-dir nfs/saves/SimIPU/supervise_imagenet_nyu
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_kitti_50e_nyu.py 2 --work-dir nfs/saves/SimIPU/kitti_50e_nyu
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_waymo_50e_nyu.py 2 --work-dir nfs/saves/SimIPU/waymo_50e_nyu
-
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_kitti_50e_kitti.py 2 --work-dir nfs/saves/SimIPU/kitti_50e_kitti
-bash ./tools/dist_train.sh configs/SimIPU/SimIPU_r50_waymo_50e_kitti.py 2 --work-dir nfs/saves/SimIPU/waymo_50e_kitti
-
-
-
+python tools/train.py configs/binsformer/binsformer_swint_w7_2000C_$1.py
+python tools/test.py work_dirs/binsformer_swint_w7_2000C_$1/binsformer_swint_w7_2000C_$1.py work_dirs/binsformer_swint_w7_2000C_$1/latest.pth --show-dir save_files/2000C_$1/ --format-only --dataset_root data/2000C/ --dataset_split txt/2000C_$1.txt
+python tools/test.py work_dirs/binsformer_swint_w7_2000C_$1/binsformer_swint_w7_2000C_$1.py work_dirs/binsformer_swint_w7_2000C_$1/latest.pth --eval x --dataset_root data/2000C/ --dataset_split txt/2000C_$1.txt
+# python metric_mde_v2.py save_files/2000C_$1/ data/2000C/txt/2000C_$1_train.txt
+python metric_mde_v2.py save_files/2000C_$1/ data/2000C/txt/2000C_$1_test.txt
+ 
 
 

@@ -31,8 +31,8 @@ model = dict(
 
 # batch size
 data = dict(
-    samples_per_gpu=8,
-    workers_per_gpu=8,
+    samples_per_gpu=4,
+    workers_per_gpu=4,
 )
 
 # schedules
@@ -58,17 +58,22 @@ lr_config = dict(
     min_lr_ratio=1e-8,
     by_epoch=False) # test add by_epoch false
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
+
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=1600 * 24)
-checkpoint_config = dict(by_epoch=False, max_keep_ckpts=2, interval=1600)
-evaluation = dict(by_epoch=False, 
-                  start=0,
-                  interval=1600, 
-                  pre_eval=True, 
-                  rule='less', 
-                  save_best='abs_rel',
-                  greater_keys=("a1", "a2", "a3"), 
-                  less_keys=("abs_rel", "rmse"))
+runner = dict(type='EpochBasedRunner', max_epochs=24)
+checkpoint_config = dict(by_epoch=True, max_keep_ckpts=20, interval=1)
+evaluation = dict(by_epoch=True, interval=0.5, pre_eval=True)
+
+# runner = dict(type='IterBasedRunner', max_iters=1600 * 24)
+# checkpoint_config = dict(by_epoch=False, max_keep_ckpts=2, interval=1600)
+# evaluation = dict(by_epoch=False, 
+#                   start=0,
+#                   interval=1600, 
+#                   pre_eval=True, 
+#                   rule='less', 
+#                   save_best='abs_rel',
+#                   greater_keys=("a1", "a2", "a3"), 
+#                   less_keys=("abs_rel", "rmse"))
 
 # iter runtime
 log_config = dict(

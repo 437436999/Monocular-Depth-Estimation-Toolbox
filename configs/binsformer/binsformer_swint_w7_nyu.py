@@ -16,7 +16,7 @@ model = dict(
         pretrain_style='official'),
     decode_head=dict(
         type='BinsFormerDecodeHead',
-        class_num=25,
+        class_num=29,
         in_channels=[96, 192, 384, 768],
         conv_dim=256,
         min_depth=1e-3,
@@ -179,16 +179,21 @@ lr_config = dict(
     by_epoch=False)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # runtime settings
-runner = dict(type='IterBasedRunner', max_iters=1600 * 50)
-checkpoint_config = dict(by_epoch=False, max_keep_ckpts=100, interval=1600)
-evaluation = dict(by_epoch=False, 
-                  start=0,
-                  interval=1600, 
-                  pre_eval=True, 
-                  rule='less', 
-                  save_best='abs_rel',
-                  greater_keys=("a1", "a2", "a3"), 
-                  less_keys=("abs_rel", "rmse"))
+# runtime settings
+runner = dict(type='EpochBasedRunner', max_epochs=24)
+checkpoint_config = dict(by_epoch=True, max_keep_ckpts=24, interval=1)
+evaluation = dict(by_epoch=True, interval=2, pre_eval=True)
+
+# runner = dict(type='IterBasedRunner', max_iters=1600 * 50)
+# checkpoint_config = dict(by_epoch=False, max_keep_ckpts=100, interval=1600)
+# evaluation = dict(by_epoch=False, 
+#                   start=0,
+#                   interval=1600, 
+#                   pre_eval=True, 
+#                   rule='less', 
+#                   save_best='abs_rel',
+#                   greater_keys=("a1", "a2", "a3"), 
+#                   less_keys=("abs_rel", "rmse"))
 
 # iter runtime
 log_config = dict(

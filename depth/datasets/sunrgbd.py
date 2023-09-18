@@ -177,7 +177,10 @@ class SUNRGBDDataset(Dataset):
 
     def format_results(self, results, imgfile_prefix=None, indices=None, **kwargs):
         """Place holder to format result to dataset specific output."""
-        raise NotImplementedError
+        # raise NotImplementedError
+        for i in range(len(results)):
+            results[i] = (results[i] * self.depth_scale) # Do not convert to np.uint16 for ensembling. # .astype(np.uint16)
+        return results
 
     def get_gt_depth_maps(self):
         """Get ground truth depth maps for evaluation."""

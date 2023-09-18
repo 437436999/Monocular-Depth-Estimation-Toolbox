@@ -108,19 +108,24 @@ class ReassembleBlocks(BaseModule):
         for i, x in enumerate(inputs):
             assert len(x) == 2
             x, cls_token = x[0], x[1]
+            # print("decoder layer", i, "input size =", x.shape, cls_token.shape)
             feature_shape = x.shape
             if self.readout_type == 'project':
                 x = x.flatten(2).permute((0, 2, 1))
+                # print("project flatten size =", x.shape)
                 readout = cls_token.unsqueeze(1).expand_as(x)
                 x = self.readout_projects[i](torch.cat((x, readout), -1))
                 x = x.permute(0, 2, 1).reshape(feature_shape)
+                # print("project readout size =", x.shape)
             elif self.readout_type == 'add':
                 x = x.flatten(2) + cls_token.unsqueeze(-1)
                 x = x.reshape(feature_shape)
             else:
                 pass
             x = self.projects[i](x)
+            # print("project output size =", x.shape)
             x = self.resize_layers[i](x)
+            # print("resize output size =", x.shape)
             out.append(x)
         return out
 
@@ -304,10 +309,17 @@ class DPTHead(DepthBaseDecodeHead):
         assert len(inputs) == self.num_reassemble_blocks
         x = [inp for inp in inputs]
         x = self.reassemble_blocks(x)
+        # print("decoder reassemble output size =", len(x))
+        # for i in x:
+        #     print(i.shape)
         x = [self.convs[i](feature) for i, feature in enumerate(x)]
         out = self.fusion_blocks[0](x[-1])
+        # print("decoder fusion output size =", len(x))
+        # for i in x:
+        #     print(i.shape)
         for i in range(1, len(self.fusion_blocks)):
             out = self.fusion_blocks[i](out, x[-(i + 1)])
         out = self.project(out)
         out = self.depth_pred(out)
+        # print("decoder final output size =", out.shape)
         return out

@@ -98,8 +98,8 @@ class TransformerEncoderLayer(BaseModule):
     def forward(self, x):
 
         def _inner_forward(x):
-            x = self.attn(self.norm1(x), identity=x)
-            x = self.ffn(self.norm2(x), identity=x)
+            x = self.attn(self.norm1(x), identity=x) # 对输入x进行归一化操作，然后通过注意力机制进行处理
+            x = self.ffn(self.norm2(x), identity=x)  # 对上一步的输出进行归一化操作，然后通过前馈神经网络进行处理
             return x
 
         if self.with_cp and x.requires_grad:
@@ -381,14 +381,17 @@ class VisionTransformer(BaseModule):
         return pos_embed
 
     def forward(self, inputs):
+        # print("ViT input Size =", inputs.shape)
         B = inputs.shape[0]
 
         x, hw_shape = self.patch_embed(inputs)
+        # print("Patch Embeding output Size =", x.shape)
 
         # stole cls_tokens impl from Phil Wang, thanks
         cls_tokens = self.cls_token.expand(B, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
         x = self._pos_embeding(x, hw_shape, self.pos_embed)
+        # print("Pos Embeding output Size =", x.shape)
 
         if not self.with_cls_token:
             # Remove class token for transformer encoder input
@@ -397,6 +400,8 @@ class VisionTransformer(BaseModule):
         outs = []
         for i, layer in enumerate(self.layers):
             x = layer(x)
+            # print("Transformer output Size =", x.shape)
+
             if i == len(self.layers) - 1:
                 if self.final_norm:
                     x = self.norm1(x)
@@ -413,6 +418,7 @@ class VisionTransformer(BaseModule):
                     out = [out, x[:, 0]]
                 outs.append(out)
 
+        # print("ViT output Size =", len(outs), out[0].shape)
         return tuple(outs)
 
     def train(self, mode=True):

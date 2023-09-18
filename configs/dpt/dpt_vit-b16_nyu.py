@@ -40,8 +40,9 @@ lr_config = dict(
 momentum_config = dict(
     policy='OneCycle'
 )
-
-evaluation = dict(interval=1)
+runner = dict(type='EpochBasedRunner', max_epochs=24)
+checkpoint_config = dict(by_epoch=True, max_keep_ckpts=20, interval=1)
+evaluation = dict(by_epoch=True, interval=0.5, pre_eval=True)
 
 img_norm_cfg = dict(
     mean=[127.5, 127.5, 127.5], std=[127.5, 127.5, 127.5], to_rgb=True)

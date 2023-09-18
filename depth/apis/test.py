@@ -84,7 +84,6 @@ def single_gpu_test(model,
     # we use batch_sampler to get correct data idx
     loader_indices = data_loader.batch_sampler
 
-
     for batch_indices, data in zip(loader_indices, data_loader):
         result = [None]
 
@@ -92,6 +91,7 @@ def single_gpu_test(model,
             result_depth = model(return_loss=False, **data)
 
         # print("result_depth", len(result_depth), result_depth[0].shape)
+        # print(result_classes, result_classes.shape)
 
         if format_only:
             result = dataset.format_results(result_depth,

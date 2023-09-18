@@ -60,6 +60,21 @@ def parse_args():
         choices=['none', 'pytorch', 'slurm', 'mpi'],
         default='none',
         help='job launcher')
+    parser.add_argument(
+        '--dataset_split',
+        type=str,
+        default='none',
+        help='test dataset split txt name')
+    parser.add_argument(
+        '--dataset_root',
+        type=str,
+        default='none',
+        help='test dataset root')
+    parser.add_argument(
+        '--batch_size',
+        type=int,
+        default='32',
+        help='batch size')
     parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
@@ -100,6 +115,12 @@ def main():
         cfg.data.test.pipeline[1].flip = True
     cfg.model.pretrained = None
     cfg.data.test.test_mode = True
+    if not args.dataset_root == "none":
+        print("Test dataset root is:", args.dataset_root)
+        cfg.data.test.data_root = args.dataset_root
+    if not args.dataset_split == "none":
+        print("Test dataset is:", args.dataset_split)
+        cfg.data.test.split = args.dataset_split
 
     # init distributed env first, since logger depends on the dist info.
     if args.launcher == 'none':
@@ -113,10 +134,13 @@ def main():
     dataset = build_dataset(cfg.data.test)
     data_loader = build_dataloader(
         dataset,
-        samples_per_gpu=64, # batch size
+        samples_per_gpu=args.batch_size, # batch size
         workers_per_gpu=cfg.data.workers_per_gpu,
         dist=distributed,
         shuffle=False)
+    
+    output_file = open("cls_res.txt", 'w')
+    output_file.close()
 
     # build the model and load checkpoint
     cfg.model.train_cfg = None

@@ -3,6 +3,10 @@ import matplotlib.pyplot as plt
 import sys
 import os
 
+file_path = None
+iter_mode = None
+output_mode = None
+
 # 读取 JSON 文件
 def read_json_file(file_path):
     with open(file_path, 'r') as f:
@@ -52,8 +56,8 @@ def plot_line_chart(data, file_path):
         cur_iter = entry['iter']
         epochs.append(entry['epoch'])
         iters.append(entry['iter'])
-        aux_loss_depth_2.append(entry['decode.aux_loss_depth_2'])
-        aux_loss_depth_5.append(entry['decode.aux_loss_depth_5'])
+        # aux_loss_depth_2.append(entry['decode.aux_loss_depth_2'])
+        # aux_loss_depth_5.append(entry['decode.aux_loss_depth_5'])
         loss_depth.append(entry['decode.loss_depth'])
         loss.append(entry['loss'])
         if 'decode.loss_ce' in entry:
@@ -61,12 +65,15 @@ def plot_line_chart(data, file_path):
         # grad_norm.append(entry['grad_norm'])
 
     fig, ax1 = plt.subplots()
-    ax1.plot(iters, aux_loss_depth_2, label='aux_loss_depth_2')
-    ax1.plot(iters, aux_loss_depth_5, label='aux_loss_depth_5')
-    ax1.plot(iters, loss_depth, label='loss_depth')
-    ax1.plot(iters, loss, label='loss')
+    if len(aux_loss_depth_2)>0:
+        ax1.plot(iters, aux_loss_depth_2, label='aux_loss_depth_2')
+    if len(aux_loss_depth_5)>0:
+        ax1.plot(iters, aux_loss_depth_5, label='aux_loss_depth_5')
+    if len(loss_depth)>0:
+        ax1.plot(iters, loss_depth, label='loss_depth')
     if len(loss_ce)>0:
         ax1.plot(iters, loss_ce, label='loss_ce')
+    ax1.plot(iters, loss, label='loss')
     # ax1.plot(iters, grad_norm, label='grad_norm')
 
     ax1.set_xlabel('iter')
@@ -74,7 +81,7 @@ def plot_line_chart(data, file_path):
     plt.legend()
 
     ax2 = ax1.twiny()
-    ax2.plot(epochs, aux_loss_depth_2, alpha=0)  # 使用透明的线条来显示 epoch 轴
+    ax2.plot(epochs, loss, alpha=0)  # 使用透明的线条来显示 epoch 轴
     ax2.set_xlabel('epoch')
 
     fig.set_size_inches(10, 8)  # 设置图片大小为 10x6 英寸
@@ -104,16 +111,46 @@ def plot_line_chart(data, file_path):
     save_path = os.path.join(os.path.dirname(file_path), "chartVal.png")
     plt.savefig(save_path)
 
+def print_last_line(data):
+    entry = data[-1]
+    output_path = os.path.join(os.path.dirname(file_path), "formatOutput.txt")
+    fp = open(output_path, "w")
+    fp.write(str(entry['epoch']))
+    fp.write("\n")
+    fp.write(str(entry['a1']))
+    fp.write(" ")
+    fp.write(str(entry['a2']))
+    fp.write(" ")
+    fp.write(str(entry['a3']))
+    fp.write(" ")
+    fp.write(str(entry['abs_rel']))
+    fp.write(" ")
+    fp.write(str(entry['rmse']))
+    fp.write(" ")
+    fp.write(str(entry['log_10']))
+    fp.write(" ")
+    fp.write(str(entry['rmse_log']))
+    fp.write("\n")
+
 
 # 主函数
 def main():
+    global file_path, iter_mode, output_mode
     if len(sys.argv) < 2:
         print("Usage: python script.py <json_file_path>")
         return
     
+    # 参数读取
     file_path = sys.argv[1]  # 从命令行参数获取 JSON 文件路径
+    iter_mode = sys.argv[2]
+    output_mode = sys.argv[3]
+
     data = read_json_file(file_path)
-    plot_line_chart(data, file_path)
+
+    if output_mode=="chart":
+        plot_line_chart(data, file_path)
+    elif output_mode=="txt":
+        print_last_line(data)
 
 if __name__ == '__main__':
     main()
