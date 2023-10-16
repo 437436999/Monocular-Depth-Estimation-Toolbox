@@ -16,6 +16,7 @@ from depth.datasets import build_dataloader, build_dataset
 from depth.models import build_depther
 
 import numpy as np
+from torchsummary import summary
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -139,8 +140,8 @@ def main():
         dist=distributed,
         shuffle=False)
     
-    output_file = open("cls_res.txt", 'w')
-    output_file.close()
+    # output_file = open("cls_res.txt", 'w')
+    # output_file.close()
 
     # build the model and load checkpoint
     cfg.model.train_cfg = None
@@ -176,6 +177,7 @@ def main():
     else:
         tmpdir = None
 
+    # 开始进行测试
     if not distributed:
         model = MMDataParallel(model, device_ids=[0])
         results = single_gpu_test(

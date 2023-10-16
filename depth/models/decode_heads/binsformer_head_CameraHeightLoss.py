@@ -31,7 +31,7 @@ class UpSample(nn.Sequential):
         return self.convB(self.convA(torch.cat([up_x, concat_with], dim=1)))
 
 @HEADS.register_module()
-class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
+class BinsFormerDecodeHeadCameraHeightLoss(DepthBaseDecodeHead):
     """BinsFormer head
     This head is implemented of `BinsFormer: <https://arxiv.org/abs/2204.00987>`_.
     Motivated by segmentation methods, we design a double-stream decoders to achieve depth estimation.
@@ -76,7 +76,7 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
                  loss_class=dict(type='CrossEntropyLoss', loss_weight=1e-1),
                  train_cfg=dict(aux_loss=True,),
                  **kwargs):
-        super(BinsFormerDecodeHeadCameraHeightAware, self).__init__(**kwargs)
+        super(BinsFormerDecodeHeadCameraHeightLoss, self).__init__(**kwargs)
 
         self.conv_dim = conv_dim
         self.act_cfg = act_cfg
@@ -94,6 +94,11 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
         
         self.train_cfg = train_cfg
         self.dms_decoder = dms_decoder
+
+        # 相机高度的训练参数
+        self.train_iter_count = 0
+        self.pred_cam_height_confidence = 0.0
+        self.max_pred_cam_height_confidence = 0.8
 
         # DMSTransformer used to apply self-att before cross-att following detr-like methods
         self.skip_proj = nn.ModuleList()
@@ -135,9 +140,15 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
         self.output_convs = output_convs[::-1]
 
         # build queries for transformer head
+        # classify输出长度为cls_num的向量数组
+        # 1、经过softmax，得到概率分布A
+        # 2、将(max_depth-min_depth)划分为cls_num个区间，区间长度为(max_depth-min_depth)/cls_num，区间向量B
+        # 3、AxB得到相机高度估计值s
+        # 4、s与输入标签S计算损失，损失函数F.SmoothL1Loss(reduction='mean')
         self.classify = classify
         if self.classify is True:
-            self.loss_class = build_loss(loss_class)
+            self.loss_class = torch.nn.SmoothL1Loss()
+            self.class_num = class_num
             # transformer_decoder['decoder']['classify'] = True
             # transformer_decoder['decoder']['class_num'] = class_num
             transformer_decoder['classify'] = True
@@ -191,10 +202,11 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
         cam_height_list = torch.from_numpy(cam_height_list).cuda()
         return cam_height_list
 
-    def forward(self, inputs, cam_height_list = []):
+    def forward(self, inputs, cam_height_list):
         """Forward function."""
         # NOTE: first apply self-att before cross-att
         out = []
+        
         if self.dms_decoder:
             
             # projection of the input features
@@ -315,7 +327,6 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
                 pred_depth = F.relu(self.pred_depth(pred_logit)) + self.min_depth
 
             else:
-
                 bins = item_bin.squeeze(dim=2)
                 
                 if self.norm == 'linear':
@@ -334,11 +345,17 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
                 centers = 0.5 * (bin_edges[:, :-1] + bin_edges[:, 1:])
                 n, dout = centers.size()
 
+                # 相机高度估计值s
+                cls_softmax = torch.softmax(pred_class, 1)
+                cam_height_bin_width = (self.max_depth - self.min_depth) / self.class_num
+                cam_height_bin_list = torch.arange(self.min_depth, self.max_depth, cam_height_bin_width).cuda() + cam_height_bin_width/2.0
+                pred_cam_height = (cls_softmax*cam_height_bin_list).sum(axis=1).to(torch.float32)
+                combine_cam_height = self.pred_cam_height_confidence * pred_cam_height \
+                                   + (1-self.pred_cam_height_confidence) * cam_height_list
                 # 修改bin center
-                # pdb.set_trace() # 断点调试
                 centers_min = centers.min(axis=1)
                 centers_max = centers.max(axis=1)
-                centers = ( centers - centers_min.values.view(n,1) ) * cam_height_list.view(n,1) / (centers_max.values-centers_min.values).view(n,1)
+                centers = ( centers - centers_min.values.view(n,1) ) * combine_cam_height.view(n,1) / (centers_max.values-centers_min.values).view(n,1)
 
                 centers = centers.contiguous().view(n, dout, 1, 1)
 
@@ -356,9 +373,13 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
         return pred_depths, pred_bins, pred_classes
 
     def forward_train(self, img, inputs, img_metas, depth_gt, train_cfg, class_label=None):
+        self.train_iter_count += len(inputs)
+        if self.train_iter_count > 3000:
+            self.pred_cam_height_confidence = min(self.pred_cam_height_confidence + 0.05, self.max_pred_cam_height_confidence)
+            self.train_iter_count = 0
+            print(f"pred_cam_height_confidence = {self.pred_cam_height_confidence:.5f}")
         losses = dict()
         
-        n = len(inputs)
         cam_height_list = self.GetCameraHeightList(img_metas)
 
         pred_depths, pred_bins, pred_classes = self.forward(inputs,  cam_height_list = cam_height_list)
@@ -383,10 +404,20 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
                 else:
                     depth_loss = self.loss_decode(depth, depth_gt) * weight
 
+                    # classify输出长度为cls_num的向量数组
+                    # 1、经过softmax，得到概率分布A
+                    # 2、将(max_depth-min_depth)划分为cls_num个区间，区间长度为(max_depth-min_depth)/cls_num，区间向量B
+                    # 3、AxB得到相机高度估计值s
+                    # 4、s与输入标签S计算损失，损失函数F.SmoothL1Loss(reduction='mean')
                     if self.classify:
+                        # pdb.set_trace() # 断点调试
                         cls = pred_classes[index]
-                        loss_ce, _ = self.loss_class(cls, class_label)
-                        aux_weight_dict.update({'aux_loss_ce' + f"_{index}": loss_ce})
+                        cls_softmax = torch.softmax(cls, 1)
+                        cam_height_bin_width = (self.max_depth - self.min_depth) / self.class_num
+                        cam_height_bin_list = torch.arange(self.min_depth, self.max_depth, cam_height_bin_width).cuda() + cam_height_bin_width/2.0
+                        pred_cam_height = (cls_softmax*cam_height_bin_list).sum(axis=1).to(torch.float32)
+                        loss_smooth_l1 = self.loss_class(pred_cam_height, cam_height_list.to(torch.float32))
+                        aux_weight_dict.update({'aux_loss_smooth_l1' + f"_{index}": loss_smooth_l1})  
 
                     if self.with_loss_chamfer:
                         bin = pred_bins[index]
@@ -414,10 +445,12 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
 
             if self.classify:
                 cls = pred_classes[-1]
-                loss_ce, acc = self.loss_class(cls, class_label) 
-                losses["loss_ce"] = loss_ce
-                for index, topk in enumerate(acc):
-                    losses["ce_acc_level_{}".format(index)] = topk
+                cls_softmax = torch.softmax(cls, 1)
+                cam_height_bin_width = (self.max_depth - self.min_depth) / self.class_num
+                cam_height_bin_list = torch.arange(self.min_depth, self.max_depth, cam_height_bin_width).cuda() + cam_height_bin_width/2.0
+                pred_cam_height = (cls_softmax*cam_height_bin_list).sum(axis=1).to(torch.float32)
+                loss_smooth_l1 = self.loss_class(pred_cam_height, cam_height_list.to(torch.float32))
+                losses["loss_smooth_l1"] = loss_smooth_l1
 
             if self.with_loss_chamfer:
                 bin = pred_bins[-1]
@@ -429,21 +462,26 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
         log_imgs = self.log_images(img[0], pred_depths[0], depth_gt[0], img_metas[0])
         losses.update(**log_imgs)
 
+
         return losses
 
     def forward_test(self, inputs, img_metas, test_cfg):
-        n = len(inputs)
+        self.pred_cam_height_confidence = 0.8
         cam_height_list = self.GetCameraHeightList(img_metas)
 
-        # pdb.set_trace() # 断点调试
         pred_depths, pred_bins, pred_classes = self.forward(inputs, cam_height_list = cam_height_list)
 
+
+
         if not pred_classes[-1] == None:
+            cls = pred_classes[-1]
+            cls_softmax = torch.softmax(cls, 1)
+            cam_height_bin_width = (self.max_depth - self.min_depth) / self.class_num
+            cam_height_bin_list = torch.arange(self.min_depth, self.max_depth, cam_height_bin_width).cuda() + cam_height_bin_width/2.0
+            pred_cam_height = (cls_softmax*cam_height_bin_list).sum(axis=1).to(torch.float32)
+
             output_file = open("cls_res.txt", 'a')
-            cls_res = np.argmax(pred_classes[-1].cpu(), axis=1).tolist()
-            for i in cls_res:
-                output_file.write(str(i) + " ")
-            output_file.write("\n")
+            output_file.write(f"{pred_cam_height.data}\n{cam_height_list.data}\n\n")
             output_file.close()
         
         return pred_depths[-1]

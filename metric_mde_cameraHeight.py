@@ -12,6 +12,7 @@ import pandas as pd
 img_count = 0
 cam_height = 0.0
 ERROR_THRESHOLD = 50
+GENERATE_HIST = False
 
 gt_height_sum = []
 pred_height_sum = []
@@ -19,10 +20,11 @@ diff_height_sum = []
 gt_height_pre_person = {}
 pred_height_pre_person = {}
 diff_height_pre_person = {}
+pre_eval_results = []
 
 # 完成一张rect图片，读取对应的检测结果进行评估
 def detectRectImage(src_file_path, gt_file_path, pred_file_path, detect_txt_path):
-    global pred_height_sum, gt_height_sum, diff_height_sum, gt_height_pre_person, pred_height_pre_person, diff_height_pre_person
+    global pred_height_sum, gt_height_sum, diff_height_sum, gt_height_pre_person, pred_height_pre_person, diff_height_pre_person, pre_eval_results
     
     # 读取txt文件
     if not os.path.exists(detect_txt_path):
@@ -75,6 +77,12 @@ def detectRectImage(src_file_path, gt_file_path, pred_file_path, detect_txt_path
     draw_gt = drawBox(x1, x2, y1, y2, draw_gt, value1=cam_height-gt_value, value2=gt_value)
     src_img = drawBox(x1, x2, y1, y2, src_img, value1=cam_height-gt_value, value2=cam_height-pred_value)
 
+    depth_scale = 10000.0
+    pred_img = pred_img.astype(np.float32)/depth_scale
+    gt_img = gt_img.astype(np.float32)/depth_scale
+    eval = metrics(gt_img, pred_img, min_depth=1e-3, max_depth=10)
+    pre_eval_results.append(eval)
+
 
     if gt_value!=0:
         # pred_height_sum.append(cam_height-pred_value)
@@ -111,6 +119,7 @@ def detectRectImage(src_file_path, gt_file_path, pred_file_path, detect_txt_path
         return
 
 # ======================================================== main ========================================================================================
+# 评估以相机挂高为场景信息的预测结果
 
 pred_path = sys.argv[1]         # 预测结果图的保存路径，save_files/2000C_test/
 file_list_name = sys.argv[2]    # 图片列表txt文件 data/2000C/2000C_test1.txt
@@ -161,7 +170,6 @@ gt_std = []
 diff_mean = []
 diff_std = []
 data = []
-print()
 for track_id, v in gt_height_pre_person.items():
     # print("track id:", track_id, "num = ", len(gt_height_pre_person[track_id]))
     # print(np.mean(pred_height_pre_person[track_id]), np.min(pred_height_pre_person[track_id]), np.max(pred_height_pre_person[track_id]), np.std(pred_height_pre_person[track_id]))
@@ -200,49 +208,50 @@ df = pd.DataFrame(data)
 df.to_excel("excel/" + os.path.basename(pred_path[:-1]) + "_" + os.path.basename(file_list_name)[:-4] + '.xlsx', index=False)
 
 # # 输出平均误差
-print()
-print("detect count = ", len(pred_height_sum))
-print("pred result")
-print("gt result")
-print("differ result")
-print("avg, min, max, std = ", np.mean(pred_mean), np.min(pred_height_sum), np.max(pred_height_sum), np.mean(pred_std))
-print("avg, min, max, std = ", np.mean(gt_mean), np.min(gt_height_sum), np.max(gt_height_sum), np.mean(gt_std))
-print("avg, min, max, std = ", np.mean(diff_mean), np.min(diff_height_sum), np.max(diff_height_sum), np.mean(diff_std))
-print(f"'{file_list_name}' metric finish.")
+# print()
+# print("detect count = ", len(pred_height_sum))
+np.set_printoptions(linewidth=np.inf)
+print("\r", ' '.join(str(item) for item in np.mean(pre_eval_results, axis=0)[:-2]), f"{np.mean(diff_mean):.4f} {np.min(diff_height_sum):.4f} {np.max(diff_height_sum):.4f} {np.mean(diff_std):.4f}", flush=True)
+# print("pred\t", np.mean(pred_mean), np.min(pred_height_sum), np.max(pred_height_sum), np.mean(pred_std))
+# print("gt\t", np.mean(gt_mean), np.min(gt_height_sum), np.max(gt_height_sum), np.mean(gt_std))
+# print("diff\t", np.mean(diff_mean), np.min(diff_height_sum), np.max(diff_height_sum), np.mean(diff_std))
+# print(f"'{file_list_name}' metric finish.")
 
-# 统计直方图
-data1 = cam_height-np.array(gt_height_sum)
-data2 = cam_height-np.array(pred_height_sum)
-# df = pd.DataFrame({'Gt': data1, 'Pred': data2})
-# excel_file = 'data.xlsx'
-# df.to_excel(excel_file, index=False)
+if GENERATE_HIST:
+    # 统计直方图
+    data1 = cam_height-np.array(gt_height_sum)
+    data2 = cam_height-np.array(pred_height_sum)
+    # df = pd.DataFrame({'Gt': data1, 'Pred': data2})
+    # excel_file = 'data.xlsx'
+    # df.to_excel(excel_file, index=False)
 
-# 统计直方图
-hist1, bins1 = np.histogram(data1, bins=40)  # 直方图统计
-hist2, bins2 = np.histogram(data2, bins=40) 
-bin_centers1 = (bins1[:-1] + bins1[1:]) / 2
-bin_centers2 = (bins2[:-1] + bins2[1:]) / 2
-# 绘制折线图
-plt.plot(bin_centers1, hist1, color='blue', label='gt')
-plt.plot(bin_centers2, hist2, color='red', label='pred')
-plt.xlabel('Value')
-plt.ylabel('Frequency')
-plt.title('Histogram Line Plot')
-plt.legend()# 显示图例
-# 保存图像
-plt.savefig("histogram/" + os.path.basename(pred_path[:-1]) + "_" + os.path.basename(file_list_name)[:-4]+'_histogram.png')
+    # 统计直方图
+    hist1, bins1 = np.histogram(data1, bins=40)  # 直方图统计
+    hist2, bins2 = np.histogram(data2, bins=40) 
+    bin_centers1 = (bins1[:-1] + bins1[1:]) / 2
+    bin_centers2 = (bins2[:-1] + bins2[1:]) / 2
+    # 绘制折线图
+    plt.clf()
+    plt.plot(bin_centers1, hist1, color='blue', label='gt')
+    plt.plot(bin_centers2, hist2, color='red', label='pred')
+    plt.xlabel('Value')
+    plt.ylabel('Frequency')
+    plt.title('Histogram Line Plot')
+    plt.legend()# 显示图例
+    # 保存图像
+    plt.savefig("histogram/" + os.path.basename(pred_path[:-1]) + "_" + os.path.basename(file_list_name)[:-4]+'_histogram.png')
 
 
-# 统计直方图
-data3 = np.array(diff_height_sum)
-hist3, bins3 = np.histogram(data3, bins=20)  # 直方图统计
-bin_centers3 = (bins3[:-1] + bins3[1:]) / 2
-# 绘制折线图
-plt.clf()
-plt.plot(bin_centers3, hist3, color='blue', label='diff')
-plt.xlabel('Value')
-plt.ylabel('Frequency')
-plt.title('Histogram Line Plot')
-plt.legend()# 显示图例
-# 保存图像
-plt.savefig("histogram/" + os.path.basename(pred_path[:-1]) + "_" + os.path.basename(file_list_name)[:-4]+'_diff_histogram.png')
+    # 统计直方图
+    data3 = np.array(diff_height_sum)
+    hist3, bins3 = np.histogram(data3, bins=20)  # 直方图统计
+    bin_centers3 = (bins3[:-1] + bins3[1:]) / 2
+    # 绘制折线图
+    plt.clf()
+    plt.plot(bin_centers3, hist3, color='blue', label='diff')
+    plt.xlabel('Value')
+    plt.ylabel('Frequency')
+    plt.title('Histogram Line Plot')
+    plt.legend()# 显示图例
+    # 保存图像
+    plt.savefig("histogram/" + os.path.basename(pred_path[:-1]) + "_" + os.path.basename(file_list_name)[:-4]+'_diff_histogram.png')

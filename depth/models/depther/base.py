@@ -239,6 +239,7 @@ class BaseDepther(BaseModule, metaclass=ABCMeta):
         if format_only:
             if out_file is not None:
                 # np.save(out_file, depth) # only save the value.
+                depth[depth>65535] = 0
                 w=depth.shape[1]
                 h=depth.shape[2]
                 depth_uint16 = depth.astype(np.uint16).reshape((w, h))

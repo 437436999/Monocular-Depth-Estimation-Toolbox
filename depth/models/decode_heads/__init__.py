@@ -4,4 +4,8 @@ from .adabins_head import AdabinsHead
 from .bts_head import BTSHead
 from .dpt_head import DPTHead
 from .binsformer_head import BinsFormerDecodeHead
+from .binsformer_head_CameraHeightAware import BinsFormerDecodeHeadCameraHeightAware
+from .binsformer_head_CameraHeightLoss import BinsFormerDecodeHeadCameraHeightLoss
+from .binsformer_head_SceneLabelAware import BinsFormerDecodeHeadSceneLabelAware
+from .binsformer_head_SceneLabelAwareV2 import BinsFormerDecodeHeadSceneLabelAwareV2
 from .newcrfs import NewCRFHead

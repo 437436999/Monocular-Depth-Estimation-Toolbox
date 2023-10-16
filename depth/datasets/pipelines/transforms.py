@@ -6,6 +6,8 @@ from depth.ops import resize
 from ..builder import PIPELINES
 from numpy.core.fromnumeric import shape
 from mmcv.utils import deprecated_api_warning
+from scipy.ndimage import zoom
+from PIL import Image
 
 
 @PIPELINES.register_module()
@@ -78,6 +80,63 @@ class NYUCrop(object):
         img_cropped = results["img"][45:472, 43:608, :]
         results["img"] = img_cropped
         results["ori_shape"] = img_cropped.shape
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        return repr_str
+    
+
+@PIPELINES.register_module()
+class S2D3DResize(object):
+    """ 根据2D-3D-S的图像的焦距对图像大小进行调整, 使其调整至与nyu相同的焦距
+
+    Args:
+        depth (bool): Whether apply S2D3DResize on depth map. Default: False.
+    """
+    def __init__(self, depth=False, padding=False):
+        self.depth = depth
+        self.padding = padding
+
+    def __call__(self, results):
+        """Call function to apply S2D3DResize on images.
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Croped results.
+        """
+
+        img_cropped = results["img"]
+        scale = results["focal_scale"]
+        scaled_image = zoom(img_cropped, (1/scale[0], 1/scale[1], 1), order=0)
+        output_image = scaled_image
+        if self.padding:
+            output_image = np.zeros((640, 640, 3), dtype=scaled_image.dtype)
+            scaled_height, scaled_width, _ = scaled_image.shape
+            crop_x = (scaled_width - 640) // 2
+            crop_y = (scaled_height - 640) // 2
+            start_x = max(0, crop_x)
+            start_y = max(0, crop_y)
+            end_x = min(scaled_width, crop_x + 640)
+            end_y = min(scaled_height, crop_y + 640)
+            output_image[start_y - crop_y:end_y - crop_y, start_x - crop_x:end_x - crop_x, :] = scaled_image[start_y:end_y, start_x:end_x, :]
+
+        results["img"] = output_image
+        results["ori_shape"] = output_image.shape
+
+        if self.depth:
+            depth_cropped = results["depth_gt"]
+            scaled_depth = zoom(depth_cropped, (1/scale[0], 1/scale[1]), order=0)
+            output_depth = scaled_depth
+            if self.padding:
+                output_depth = np.zeros((640, 640), dtype=scaled_depth.dtype)
+                output_depth[start_y - crop_y:end_y - crop_y, start_x - crop_x:end_x - crop_x] = scaled_depth[start_y:end_y, start_x:end_x]
+            
+            results["depth_gt"] = output_depth
+            results["depth_shape"] = results["depth_gt"].shape
+
         return results
 
     def __repr__(self):

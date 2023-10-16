@@ -81,7 +81,16 @@ class NYUDataset(Dataset):
         self.eigen_crop = eigen_crop
         self.min_depth = min_depth
         self.max_depth = max_depth
-        
+
+        if self.data_root=="data/2000C/":
+            self.depth_scale = 10000.0
+            self.eigen_crop = False
+        elif self.data_root=="data/2D-3D-Semantics/":
+            self.depth_scale = 512.0
+            self.eigen_crop = False
+
+        self.output_scale = 6000.0
+
         # join paths if data_root is specified
         if self.data_root is not None:
             if not (self.split is None or osp.isabs(self.split)):
@@ -194,7 +203,7 @@ class NYUDataset(Dataset):
         """Place holder to format result to dataset specific output."""
         # raise NotImplementedError
         for i in range(len(results)):
-            results[i] = (results[i] * self.depth_scale) # Do not convert to np.uint16 for ensembling. # .astype(np.uint16)
+            results[i] = (results[i] * self.output_scale) # Do not convert to np.uint16 for ensembling. # .astype(np.uint16)
         return results
 
     def get_gt_depth_maps(self):
@@ -220,7 +229,8 @@ class NYUDataset(Dataset):
                 # eval_mask = np.ones(valid_mask.shape)
                 eval_mask[45:471, 41:601] = 1
 
-        valid_mask = np.logical_and(valid_mask, eval_mask)
+            valid_mask = np.logical_and(valid_mask, eval_mask)
+
         valid_mask = np.expand_dims(valid_mask, axis=0)
         return valid_mask
 
@@ -250,10 +260,13 @@ class NYUDataset(Dataset):
             # print(depth_map)
             depth_map_gt = np.asarray(Image.open(depth_map), dtype=np.float32) / self.depth_scale
             # print("size", pred.shape, depth_map_gt.shape)
-            depth_map_gt = cv2.resize(depth_map_gt, (pred.shape[2], pred.shape[1]))
+            depth_map_gt = cv2.resize(depth_map_gt, (pred.shape[2], pred.shape[1]), interpolation=cv2.INTER_NEAREST)
             depth_map_gt = np.expand_dims(depth_map_gt, axis=0)
             # depth_map_gt = self.eval_nyu_crop(depth_map_gt)
             valid_mask = self.eval_mask(depth_map_gt)
+
+            # print(np.min(pred[valid_mask]), np.max(pred[valid_mask]))
+            # print(np.min(depth_map_gt[valid_mask]), np.max(depth_map_gt[valid_mask]), "\n")
             
             eval = metrics(depth_map_gt[valid_mask], pred[valid_mask], self.min_depth, self.max_depth)
             pre_eval_results.append(eval)

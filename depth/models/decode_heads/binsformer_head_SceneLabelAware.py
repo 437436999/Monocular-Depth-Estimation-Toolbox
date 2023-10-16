@@ -31,7 +31,7 @@ class UpSample(nn.Sequential):
         return self.convB(self.convA(torch.cat([up_x, concat_with], dim=1)))
 
 @HEADS.register_module()
-class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
+class BinsFormerDecodeHeadSceneLabelAware(DepthBaseDecodeHead):
     """BinsFormer head
     This head is implemented of `BinsFormer: <https://arxiv.org/abs/2204.00987>`_.
     Motivated by segmentation methods, we design a double-stream decoders to achieve depth estimation.
@@ -76,7 +76,7 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
                  loss_class=dict(type='CrossEntropyLoss', loss_weight=1e-1),
                  train_cfg=dict(aux_loss=True,),
                  **kwargs):
-        super(BinsFormerDecodeHeadCameraHeightAware, self).__init__(**kwargs)
+        super(BinsFormerDecodeHeadSceneLabelAware, self).__init__(**kwargs)
 
         self.conv_dim = conv_dim
         self.act_cfg = act_cfg
@@ -183,15 +183,15 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
             if isinstance(m, nn.Conv2d):
                 xavier_init(m, distribution='uniform')
 
-    def GetCameraHeightList(self, img_metas):
-        cam_height_list = []
+    def GetSceneInfo(self, img_metas):
+        scene_info_list = []
         for img_meta in img_metas:
-            cam_height_list.append(img_meta['camera_height'])
-        cam_height_list = np.array(cam_height_list) + 0.0 # 边界阈值
-        cam_height_list = torch.from_numpy(cam_height_list).cuda()
-        return cam_height_list
+            scene_info_list.append(img_meta['scene_info'])
+        scene_info_list = np.array(scene_info_list) # Nx5
+        scene_info_list = torch.from_numpy(scene_info_list).cuda()
+        return scene_info_list
 
-    def forward(self, inputs, cam_height_list = []):
+    def forward(self, inputs, scene_info_list = []):
         """Forward function."""
         # NOTE: first apply self-att before cross-att
         out = []
@@ -328,19 +328,31 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
                     bins = torch.sigmoid(bins)
                 bins = bins / bins.sum(dim=1, keepdim=True)
 
-                bin_widths = (self.max_depth - self.min_depth) * bins  # .shape = N, dim_out
-                bin_widths = nn.functional.pad(bin_widths, (1, 0), mode='constant', value=self.min_depth)
-                bin_edges = torch.cumsum(bin_widths, dim=1)
-                centers = 0.5 * (bin_edges[:, :-1] + bin_edges[:, 1:])
-                n, dout = centers.size()
-
-                # 修改bin center
-                # pdb.set_trace() # 断点调试
-                centers_min = centers.min(axis=1)
-                centers_max = centers.max(axis=1)
-                centers = ( centers - centers_min.values.view(n,1) ) * cam_height_list.view(n,1) / (centers_max.values-centers_min.values).view(n,1)
-
+                # Ver4: 修改bin center
+                n, n_bins = bins.shape
+                n_bins_l = int(n_bins/2)
+                n_bins_r = n_bins-n_bins_l-1
+                # left bin centers
+                left_bin_widths = (scene_info_list[:,4] - scene_info_list[:, 1]).view(n,1) * bins[:, :n_bins_l] / torch.sum(bins[:, :n_bins_l], dim=1).view(n,1)        # (n, n_bins_l)'
+                left_bin_widths = torch.cat((scene_info_list[:, 1:2], left_bin_widths), dim=1)                                                                          # (n, 1+n_bins_l)
+                left_bin_edges = torch.cumsum(left_bin_widths, dim=1)
+                left_centers = 0.5 * (left_bin_edges[:, :-1] + left_bin_edges[:, 1:])
+                # right bin centers
+                right_bin_widths = (scene_info_list[:,3] - scene_info_list[:, 4]).view(n,1) * bins[:, n_bins_l:n_bins-1] / torch.sum(bins[:, n_bins_l:n_bins-1], dim=1).view(n,1)        # (n, n_bins_r)'
+                right_bin_widths = torch.cat((scene_info_list[:, 4:5], right_bin_widths), dim=1)                                                                          # (n, 1+n_bins_l)
+                right_bin_edges = torch.cumsum(right_bin_widths, dim=1)
+                right_centers = 0.5 * (right_bin_edges[:, :-1] + right_bin_edges[:, 1:])
+                # the last col
+                last_col = (scene_info_list[:, 3] + (scene_info_list[:,2] - scene_info_list[:, 3])/2).view(n,1)
+                centers = torch.cat((left_centers, right_centers, last_col), dim=1)
+                _, dout = centers.size()
                 centers = centers.contiguous().view(n, dout, 1, 1)
+
+                # pdb.set_trace() # 断点调试
+                # bin_widths = (self.max_depth - self.min_depth) * bins  # .shape = N, dim_out
+                # bin_widths = nn.functional.pad(bin_widths, (1, 0), mode='constant', value=self.min_depth)
+                # bin_edges = torch.cumsum(bin_widths, dim=1)
+                # centers = 0.5 * (bin_edges[:, :-1] + bin_edges[:, 1:])
 
                 pred_logit = pred_logit.softmax(dim=1)
                 pred_depth = torch.sum(pred_logit * centers, dim=1, keepdim=True)
@@ -348,7 +360,7 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
                 centers = self.hook_identify_center(centers)
                 pred_logit = self.hook_identify_prob(pred_logit)
             
-                pred_bins.append(bin_edges)
+                pred_bins.append(centers)
                 pred_classes.append(pred_class) 
 
             pred_depths.append(pred_depth)
@@ -357,11 +369,8 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
 
     def forward_train(self, img, inputs, img_metas, depth_gt, train_cfg, class_label=None):
         losses = dict()
-        
-        n = len(inputs)
-        cam_height_list = self.GetCameraHeightList(img_metas)
-
-        pred_depths, pred_bins, pred_classes = self.forward(inputs,  cam_height_list = cam_height_list)
+        scene_info_list = self.GetSceneInfo(img_metas)
+        pred_depths, pred_bins, pred_classes = self.forward(inputs,  scene_info_list = scene_info_list)
 
         aux_weight_dict = {}
 
@@ -432,12 +441,10 @@ class BinsFormerDecodeHeadCameraHeightAware(DepthBaseDecodeHead):
         return losses
 
     def forward_test(self, inputs, img_metas, test_cfg):
-        n = len(inputs)
-        cam_height_list = self.GetCameraHeightList(img_metas)
+        scene_info_list = self.GetSceneInfo(img_metas)
+        pred_depths, pred_bins, pred_classes = self.forward(inputs, scene_info_list = scene_info_list)
 
         # pdb.set_trace() # 断点调试
-        pred_depths, pred_bins, pred_classes = self.forward(inputs, cam_height_list = cam_height_list)
-
         if not pred_classes[-1] == None:
             output_file = open("cls_res.txt", 'a')
             cls_res = np.argmax(pred_classes[-1].cpu(), axis=1).tolist()

@@ -122,7 +122,7 @@ eval_pipeline = [
 ]
 data = dict(
     samples_per_gpu=4,
-    workers_per_gpu=1,
+    workers_per_gpu=4,
     train=dict(
         type=dataset_type,
         data_root=data_root,
@@ -153,7 +153,6 @@ data = dict(
         eigen_crop=True,
         min_depth=1e-3,
         max_depth=10))
-
 
 # AdamW optimizer, no weight decay for position embedding & layer norm
 # in backbone

@@ -5,7 +5,7 @@ import torch.nn as nn
 from depth.models.builder import LOSSES
 
 @LOSSES.register_module()
-class SigLoss(nn.Module):
+class ScaleAwareLoss(nn.Module):
     """SigLoss.
 
         We adopt the implementation in `Adabins <https://github.com/shariqfarooq123/AdaBins/blob/main/loss.py>`_.
@@ -25,7 +25,7 @@ class SigLoss(nn.Module):
                  min_depth=0.001,
                  warm_up=False,
                  warm_iter=100):
-        super(SigLoss, self).__init__()
+        super(ScaleAwareLoss, self).__init__()
         self.valid_mask = valid_mask
         self.loss_weight = loss_weight
         self.max_depth = max_depth
@@ -54,7 +54,7 @@ class SigLoss(nn.Module):
                 return torch.sqrt(g)
 
         g = torch.log(input + self.eps) - torch.log(target + self.eps) # 0.5？
-        Dg = torch.var(g) + 0.15 * torch.pow(torch.mean(g), 2)
+        Dg = torch.var(g) + torch.pow(torch.mean(g), 2)
         return torch.sqrt(Dg)
 
     def forward(self, depth_pred, depth_gt):

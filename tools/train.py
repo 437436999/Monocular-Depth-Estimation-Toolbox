@@ -55,6 +55,21 @@ def parse_args():
         default='none',
         help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument(
+        '--train_dataset_split',
+        type=str,
+        default='none',
+        help='train dataset split txt name')
+    parser.add_argument(
+        '--test_dataset_split',
+        type=str,
+        default='none',
+        help='test dataset split txt name')
+    parser.add_argument(
+        '--dataset_root',
+        type=str,
+        default='none',
+        help='train test dataset root')
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
@@ -117,8 +132,8 @@ def main():
     meta['env_info'] = env_info
 
     # log some basic info
-    logger.info(f'Distributed training: {distributed}')
-    logger.info(f'Config:\n{cfg.pretty_text}')
+    # logger.info(f'Distributed training: {distributed}')
+    # logger.info(f'Config:\n{cfg.pretty_text}')
 
     # set random seeds
     if args.seed is not None:
@@ -141,6 +156,19 @@ def main():
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     # logger.info(model)
+    
+    if not args.dataset_root == "none":
+        print("Dataset root is:", args.dataset_root)
+        cfg.data.train.data_root = args.dataset_root
+        cfg.data.test.data_root = args.dataset_root
+    if not args.train_dataset_split == "none":
+        print("Train dataset is:", args.train_dataset_split)
+        cfg.data.train.split = args.train_dataset_split
+    if not args.test_dataset_split == "none":
+        print("Test dataset is:", args.test_dataset_split)
+        cfg.data.val.split = args.test_dataset_split
+        cfg.data.test.split = args.test_dataset_split
+
 
     datasets = [build_dataset(cfg.data.train)]
     if len(cfg.workflow) == 2:

@@ -8,10 +8,12 @@ from depth.ops import resize
 from depth.models import builder
 from depth.models.builder import DEPTHER
 from .base import BaseDepther
+import pdb
 
 # for model size
 import numpy as np
 
+# 模型最外层，E-D结构
 @DEPTHER.register_module()
 class DepthEncoderDecoder(BaseDepther):
     """Encoder Decoder depther.
@@ -174,6 +176,7 @@ class DepthEncoderDecoder(BaseDepther):
         return depth_pred
 
     def aug_test(self, imgs, img_metas, rescale=True):
+        # pdb.set_trace()
         """Test with augmentations.
 
         Only rescale=True is supported.

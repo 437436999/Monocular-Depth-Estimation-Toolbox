@@ -1,13 +1,13 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import os.path as osp
+import pdb
 
 from mmcv.utils import print_log
 from depth.utils import get_root_logger
 from depth.datasets.builder import DATASETS
-from depth.my_utils import cam_heights, nyu_scene_info, S2D3D_scene_info
+from depth.my_utils import cam_heights
 
 from .nyu import NYUDataset
-
 
 def remove_leading_slash(s):
     if s[0] == '/' or s[0] == '\\':
@@ -15,7 +15,7 @@ def remove_leading_slash(s):
     return s
 
 @DATASETS.register_module()
-class NYUBinFormerDataset(NYUDataset):
+class DataWithCameraHeight(NYUDataset):
     """NYU dataset for depth estimation. An example of file structure
     is as followed.
     .. code-block:: none
@@ -59,7 +59,7 @@ class NYUBinFormerDataset(NYUDataset):
                  min_depth=1e-3,
                  max_depth=10):
 
-        super(NYUBinFormerDataset, self).__init__(pipeline, 
+        super(DataWithCameraHeight, self).__init__(pipeline, 
                                                   split,
                                                   data_root,
                                                   test_mode,
@@ -95,41 +95,27 @@ class NYUBinFormerDataset(NYUDataset):
                     img_info['filename'] = osp.join(data_root, remove_leading_slash(img_name))
                     img_infos.append(img_info)
 
-                    # 修改后的nyu分类标签代码
-                    if data_root == 'data/nyu/':
-                        if not img_name.startswith("/"):
-                            img_name = "/" + img_name
-                        cls_name = img_name.split("/")[1]
-                        n = cls_name.find("0")
-                        if n>0:
-                            cls_name = cls_name[:n-1]
-                        if cls_name=="nyu_office":
-                            cls_name = "office"
+                    # if self.test_mode is not True:
 
-                    elif data_root == 'data/2000C/':      # img_name.split("/") ==== ['a10_202222010412_337.34_441', 'rect', 'frame_431_sgbm_113.jpg']
+                    # 根据不同前缀进行高度分类
+                    if data_root == 'data/2000C/':      # img_name.split("/") ==== ['a10_202222010412_337.34_441', 'rect', 'frame_431_sgbm_113.jpg']
                         # 以场景分类
                         cls_name = img_name.split("/")[0].split("_")[0]
                         # 以高度分类
                         cls_name = cam_heights["2000C_" + cls_name]
 
-                    elif data_root == 'data/2D-3D-Semantics/': 
+                    if data_root == 'data/lab521/':      # ['110_bj2_0816', 'rect', 'frame_1039_sgbm_3.jpg']
                         # 以场景分类
-                        cls_name = osp.basename(img_name).split("_")[2]
-                    
-                    else:
-                        cls_name = "None"
-
+                        cls_name = img_name.split("/")[0].split("_")[0]
+                        # 以高度分类
+                        cls_name = cam_heights["lab521_" + cls_name]
+                        
                     if cls_name not in class_dict.keys():
                         class_dict[cls_name] = len(class_dict.keys())
                         print("new class:", cls_name, class_dict[cls_name])
-                    
                     label = class_dict[cls_name]
                     img_info['ann']['class_label'] = label # from 0 - 248 (totally 249 classes)
-
-                    if data_root == 'data/nyu/':
-                        img_info['scene_info'] = nyu_scene_info[cls_name]
-                    if data_root == 'data/2D-3D-Semantics/':
-                        img_info['scene_info'] = S2D3D_scene_info[cls_name]
+                    img_info['camera_height'] = cls_name/100.0 # 相机高度，以m为单位
 
         else:
             raise NotImplementedError 
@@ -153,7 +139,7 @@ class NYUBinFormerDataset(NYUDataset):
         """Prepare results dict for pipeline."""
         results['depth_fields'] = []
         results['depth_scale'] = self.depth_scale
-        results['scene_info'] = results['img_info']['scene_info']
+        results['camera_height'] = results['img_info']['camera_height']
         
 
     def __getitem__(self, idx):
@@ -200,6 +186,7 @@ class NYUBinFormerDataset(NYUDataset):
         img_info = self.img_infos[idx]
         results = dict(img_info=img_info)
         self.pre_pipeline(results)
+
         return self.pipeline(results)
 
     

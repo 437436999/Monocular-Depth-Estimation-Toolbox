@@ -2,6 +2,7 @@
 import os.path as osp
 import tempfile
 import warnings
+import pdb
 
 import mmcv
 import numpy as np
@@ -69,9 +70,6 @@ def single_gpu_test(model,
     assert [pre_eval, format_only].count(True) <= 1, \
         '``pre_eval`` and ``format_only`` are mutually ' \
         'exclusive, only one of them could be true .'
-    
-    print("format_only", format_only)
-    print("pre_eval", pre_eval)
 
     model.eval()
     results = []
